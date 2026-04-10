@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Animasi Pendulum</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0b1020;
+      --panel: #121a31;
+      --accent: #60a5fa;
+      --accent-2: #22d3ee;
+      --text: #e5e7eb;
+      --muted: #94a3b8;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background: radial-gradient(circle at top, #16213d, var(--bg) 55%);
+      color: var(--text);
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      padding: 24px;
+    }
+
+    .card {
+      width: min(760px, 100%);
+      background: color-mix(in oklab, var(--panel) 88%, black);
+      border: 1px solid #2a365b;
+      border-radius: 16px;
+      box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+      overflow: hidden;
+    }
+
+    header {
+      padding: 16px 20px;
+      border-bottom: 1px solid #2a365b;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 1.15rem;
+      font-weight: 650;
+    }
+
+    p {
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    canvas {
+      width: 100%;
+      height: auto;
+      display: block;
+      background:
+        linear-gradient(to bottom, rgba(148, 163, 184, 0.08), rgba(148, 163, 184, 0.02) 38%, transparent),
+        radial-gradient(circle at center 95%, rgba(96, 165, 250, 0.15), transparent 35%);
+    }
+
+    .controls {
+      padding: 14px 20px 20px;
+      border-top: 1px solid #2a365b;
+      display: grid;
+      gap: 10px;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 140px 1fr 64px;
+      align-items: center;
+      gap: 12px;
+    }
+
+    label {
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--accent-2);
+    }
+
+    output {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      color: var(--text);
+      font-size: 0.9rem;
+    }
+
+    @media (max-width: 640px) {
+      .row {
+        grid-template-columns: 110px 1fr 52px;
+        gap: 8px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <header>
+      <h1>Animasi Pendulum</h1>
+      <p>Model sederhana tanpa redaman. Ubah panjang tali, gravitasi, dan sudut awal.</p>
+    </header>
+
+    <canvas id="pendulum" width="760" height="420" aria-label="Animasi pendulum"></canvas>
+
+    <section class="controls" aria-label="Pengaturan pendulum">
+      <div class="row">
+        <label for="length">Panjang tali</label>
+        <input id="length" type="range" min="120" max="260" step="1" value="190" />
+        <output id="lengthValue">190</output>
+      </div>
+      <div class="row">
+        <label for="gravity">Gravitasi (g)</label>
+        <input id="gravity" type="range" min="1" max="20" step="0.1" value="9.8" />
+        <output id="gravityValue">9.8</output>
+      </div>
+      <div class="row">
+        <label for="angle">Sudut awal</label>
+        <input id="angle" type="range" min="5" max="80" step="1" value="35" />
+        <output id="angleValue">35°</output>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const canvas = document.getElementById('pendulum');
+    const ctx = canvas.getContext('2d');
+
+    const controls = {
+      length: document.getElementById('length'),
+      gravity: document.getElementById('gravity'),
+      angle: document.getElementById('angle')
+    };
+
+    const labels = {
+      length: document.getElementById('lengthValue'),
+      gravity: document.getElementById('gravityValue'),
+      angle: document.getElementById('angleValue')
+    };
+
+    const state = {
+      length: Number(controls.length.value),
+      gravity: Number(controls.gravity.value),
+      theta: Number(controls.angle.value) * Math.PI / 180,
+      omega: 0,
+      damping: 0.0008
+    };
+
+    function syncLabels() {
+      labels.length.textContent = `${state.length}`;
+      labels.gravity.textContent = state.gravity.toFixed(1);
+      labels.angle.textContent = `${Math.round(state.theta * 180 / Math.PI)}°`;
+    }
+
+    function updateStateFromInputs(changed) {
+      state.length = Number(controls.length.value);
+      state.gravity = Number(controls.gravity.value);
+
+      if (changed === 'angle') {
+        state.theta = Number(controls.angle.value) * Math.PI / 180;
+        state.omega = 0;
+      }
+
+      syncLabels();
+    }
+
+    Object.entries(controls).forEach(([name, el]) => {
+      el.addEventListener('input', () => updateStateFromInputs(name));
+    });
+
+    syncLabels();
+
+    let previousTime = performance.now();
+
+    function draw(now) {
+      const dt = Math.min((now - previousTime) / 1000, 0.032);
+      previousTime = now;
+
+      const originX = canvas.width / 2;
+      const originY = 72;
+
+      const alpha = -(state.gravity / state.length) * Math.sin(state.theta) - state.damping * state.omega;
+      state.omega += alpha * dt * 60;
+      state.theta += state.omega * dt;
+
+      const bobX = originX + state.length * Math.sin(state.theta);
+      const bobY = originY + state.length * Math.cos(state.theta);
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      ctx.beginPath();
+      ctx.moveTo(40, originY);
+      ctx.lineTo(canvas.width - 40, originY);
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = '#6b7280';
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(originX, originY);
+      ctx.lineTo(bobX, bobY);
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = '#93c5fd';
+      ctx.stroke();
+
+      const bobRadius = 20;
+      const gradient = ctx.createRadialGradient(bobX - 7, bobY - 8, 5, bobX, bobY, bobRadius);
+      gradient.addColorStop(0, '#67e8f9');
+      gradient.addColorStop(0.45, '#22d3ee');
+      gradient.addColorStop(1, '#0e7490');
+
+      ctx.beginPath();
+      ctx.arc(bobX, bobY, bobRadius, 0, Math.PI * 2);
+      ctx.fillStyle = gradient;
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.arc(originX, originY, 8, 0, Math.PI * 2);
+      ctx.fillStyle = '#d1d5db';
+      ctx.fill();
+
+      requestAnimationFrame(draw);
+    }
+
+    requestAnimationFrame(draw);
+  </script>
+</body>
+</html>
